@@ -2,15 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // Game constants matching your Python logic
 const MODES = [
-  { id: 1, name: "Simple Put-Call Parity", bit: 0b00001 },
-  { id: 2, name: "Combo Questions", bit: 0b00010 },
-  { id: 3, name: "Straddle Questions", bit: 0b00100 },
-  { id: 4, name: "B/W Questions", bit: 0b01000 },
-  { id: 5, name: "P&S Questions", bit: 0b10000 },
+  { id: 1, name: "Basic Parity", desc: "Solve for C or P", bit: 0b00001 },
+  { id: 2, name: "Combo", desc: "Solve for Spot (S)", bit: 0b00010 },
+  { id: 3, name: "Straddle", desc: "C + P logic", bit: 0b00100 },
+  { id: 4, name: "B/W", desc: "Buy/Write logic", bit: 0b01000 },
+  { id: 5, name: "P&S", desc: "Protective Synthetic", bit: 0b10000 },
 ];
 
 export default function PutCallGame() {
-  const [gameState, setGameState] = useState('MENU'); // MENU, SETTINGS, PLAYING, GAMEOVER
+  const [gameState, setGameState] = useState('MENU'); 
   const [seconds, setSeconds] = useState(60);
   const [enabledModes, setEnabledModes] = useState(0x1F);
   const [score, setScore] = useState(0);
@@ -19,7 +19,7 @@ export default function PutCallGame() {
   const [userInput, setUserInput] = useState("");
   const inputRef = useRef(null);
 
-  // Logic: Generate Prices (Matching your Python generate_prices)
+  // Core Math Logic from game.py
   const generatePrices = () => {
     const K = (Math.floor(Math.random() * (20 - 2 + 1)) + 2) * 5;
     const S = parseFloat((Math.random() * 20 - 10 + K).toFixed(2));
@@ -34,71 +34,62 @@ export default function PutCallGame() {
       P = parseFloat((K - S - carry + option_premium).toFixed(2));
       C = parseFloat((P + S - K + carry).toFixed(2));
     }
-
     return { K, S, carry, C, P };
   };
 
-  // Logic: Generate Problem (Matching your Python generate_problem)
   const generateProblem = useCallback(() => {
     const prices = generatePrices();
     const activeModes = MODES.filter(m => (enabledModes & m.bit));
     const mode = activeModes[Math.floor(Math.random() * activeModes.length)];
     
-    let question = "";
+    let vars = [];
     let answer = "";
 
     switch (mode.id) {
-      case 1: // Basic
+      case 1:
         if (Math.random() > 0.5) {
-          question = `C = ?\nP = ${prices.P}\nS = ${prices.S}\nK = ${prices.K}\nr/c = ${prices.carry}`;
+          vars = [['C', '?'], ['P', prices.P], ['S', prices.S], ['K', prices.K], ['r/c', prices.carry]];
           answer = prices.C.toString();
         } else {
-          question = `C = ${prices.C}\nP = ?\nS = ${prices.S}\nK = ${prices.K}\nr/c = ${prices.carry}`;
+          vars = [['C', prices.C], ['P', '?'], ['S', prices.S], ['K', prices.K], ['r/c', prices.carry]];
           answer = prices.P.toString();
         }
         break;
-      case 2: // Combo
+      case 2:
         const combo = parseFloat((prices.S - prices.K + prices.carry).toFixed(2));
-        question = `Combo = ${combo}\nS = ?\nK = ${prices.K}\nr/c = ${prices.carry}`;
+        vars = [['Combo', combo], ['S', '?'], ['K', prices.K], ['r/c', prices.carry]];
         answer = prices.S.toString();
         break;
-      case 3: // Straddle
+      case 3:
         const straddle = parseFloat((prices.C + prices.P).toFixed(2));
         if (Math.random() > 0.5) {
-          question = `C = ?\nStraddle = ${straddle}\nS = ${prices.S}\nK = ${prices.K}\nr/c = ${prices.carry}`;
+          vars = [['C', '?'], ['Straddle', straddle], ['S', prices.S], ['K', prices.K], ['r/c', prices.carry]];
           answer = prices.C.toString();
         } else {
-          question = `P = ?\nStraddle = ${straddle}\nS = ${prices.S}\nK = ${prices.K}\nr/c = ${prices.carry}`;
+          vars = [['P', '?'], ['Straddle', straddle], ['S', prices.S], ['K', prices.K], ['r/c', prices.carry]];
           answer = prices.P.toString();
         }
         break;
-      case 4: // B/W
+      case 4:
         const bw = parseFloat((prices.C + prices.K - prices.S).toFixed(2));
-        if (Math.random() > 0.5) {
-          question = `C = ?\nB/W = ${bw}\nS = ${prices.S}\nK = ${prices.K}\nr/c = ${prices.carry}`;
-          answer = prices.C.toString();
-        } else {
-          question = `P = ?\nB/W = ${bw}\nS = ${prices.S}\nK = ${prices.K}\nr/c = ${prices.carry}`;
-          answer = prices.P.toString();
-        }
+        vars = Math.random() > 0.5 
+          ? [['C', '?'], ['B/W', bw], ['S', prices.S], ['K', prices.K]] 
+          : [['P', '?'], ['B/W', bw], ['S', prices.S], ['K', prices.K]];
+        answer = Math.random() > 0.5 ? prices.C.toString() : prices.P.toString();
         break;
-      case 5: // P&S
+      case 5:
         const ps = parseFloat((prices.P + prices.S - prices.K).toFixed(2));
-        if (Math.random() > 0.5) {
-          question = `C = ?\nP&S = ${ps}\nS = ${prices.S}\nK = ${prices.K}\nr/c = ${prices.carry}`;
-          answer = prices.C.toString();
-        } else {
-          question = `P = ?\nP&S = ${ps}\nS = ${prices.S}\nK = ${prices.K}\nr/c = ${prices.carry}`;
-          answer = prices.P.toString();
-        }
+        vars = Math.random() > 0.5 
+          ? [['C', '?'], ['P&S', ps], ['S', prices.S], ['K', prices.K]] 
+          : [['P', '?'], ['P&S', ps], ['S', prices.S], ['K', prices.K]];
+        answer = Math.random() > 0.5 ? prices.C.toString() : prices.P.toString();
         break;
       default: break;
     }
-    setCurrentProblem({ question, answer });
+    setCurrentProblem({ vars, answer });
     setUserInput("");
   }, [enabledModes]);
 
-  // Start Game
   const startGame = () => {
     setScore(0);
     setTimeLeft(seconds);
@@ -106,7 +97,6 @@ export default function PutCallGame() {
     generateProblem();
   };
 
-  // Timer Effect
   useEffect(() => {
     let timer;
     if (gameState === 'PLAYING' && timeLeft > 0) {
@@ -117,7 +107,6 @@ export default function PutCallGame() {
     return () => clearInterval(timer);
   }, [timeLeft, gameState]);
 
-  // Input Handler
   useEffect(() => {
     if (currentProblem && userInput === currentProblem.answer) {
       setScore(s => s + 1);
@@ -125,58 +114,75 @@ export default function PutCallGame() {
     }
   }, [userInput, currentProblem, generateProblem]);
 
-  // Auto-focus input
-  useEffect(() => {
-    if (gameState === 'PLAYING' && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [gameState]);
-
   return (
     <div style={styles.container}>
-      <div style={styles.terminal}>
+      <div style={styles.card}>
         {gameState === 'MENU' && (
-          <div style={styles.content}>
-            <h2>Welcome to Put-Call-Parity!</h2>
-            <button style={styles.button} onClick={() => setGameState('SETTINGS')}>Press to Begin</button>
+          <div style={styles.centered}>
+            <h1 style={styles.title}>Put-Call Parity</h1>
+            <p style={styles.subtitle}>Test your options pricing speed.</p>
+            <button style={styles.primaryBtn} onClick={() => setGameState('SETTINGS')}>Get Started</button>
           </div>
         )}
 
         {gameState === 'SETTINGS' && (
-          <div style={styles.content}>
-            <p>Game Length (seconds):</p>
-            <input 
-              type="number" 
-              value={seconds} 
-              onChange={(e) => setSeconds(parseInt(e.target.value) || 0)}
-              style={styles.input}
-            />
-            <div style={styles.modeList}>
+          <div>
+            <h2 style={styles.sectionTitle}>Configuration</h2>
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Duration (seconds)</label>
+              <input 
+                type="number" 
+                value={seconds} 
+                onChange={(e) => setSeconds(parseInt(e.target.value) || 0)}
+                style={styles.textInput}
+              />
+            </div>
+            <div style={styles.modeGrid}>
               {MODES.map(mode => (
-                <div key={mode.id} onClick={() => setEnabledModes(prev => prev ^ mode.bit)} style={styles.modeItem}>
-                  [{ (enabledModes & mode.bit) ? 'X' : ' ' }] {mode.name}
+                <div 
+                  key={mode.id} 
+                  onClick={() => setEnabledModes(prev => prev ^ mode.bit)}
+                  style={{...styles.modeCard, borderColor: (enabledModes & mode.bit) ? '#4F46E5' : '#E5E7EB', backgroundColor: (enabledModes & mode.bit) ? '#F5F3FF' : '#FFF'}}
+                >
+                  <div style={styles.modeName}>{mode.name}</div>
+                  <div style={styles.modeDesc}>{mode.desc}</div>
                 </div>
               ))}
             </div>
-            <button style={styles.button} onClick={startGame}>Start Game (r)</button>
+            <button style={styles.primaryBtn} onClick={startGame}>Start Session</button>
           </div>
         )}
 
         {gameState === 'PLAYING' && (
-          <div style={styles.content}>
-            <div style={styles.header}>
-              <span>Time: {timeLeft}s</span>
-              <span>Score: {score}</span>
+          <div>
+            <div style={styles.gameHeader}>
+              <div style={styles.statBox}>
+                <span style={styles.statLabel}>SCORE</span>
+                <span style={styles.statValue}>{score}</span>
+              </div>
+              <div style={styles.statBox}>
+                <span style={styles.statLabel}>TIME</span>
+                <span style={{...styles.statValue, color: timeLeft < 10 ? '#EF4444' : '#111827'}}>{timeLeft}s</span>
+              </div>
             </div>
-            <pre style={styles.question}>{currentProblem?.question}</pre>
-            <div style={styles.answerArea}>
-              <span>Answer: </span>
+            
+            <div style={styles.problemGrid}>
+              {currentProblem?.vars.map(([label, val]) => (
+                <div key={label} style={styles.varRow}>
+                  <span style={styles.varLabel}>{label}</span>
+                  <span style={styles.varValue}>{val}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={styles.answerSection}>
               <input
                 ref={inputRef}
                 type="text"
+                placeholder="Type answer..."
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
-                style={styles.gameInput}
+                style={styles.answerInput}
                 autoFocus
               />
             </div>
@@ -184,10 +190,11 @@ export default function PutCallGame() {
         )}
 
         {gameState === 'GAMEOVER' && (
-          <div style={styles.content}>
-            <h1>GAME OVER</h1>
-            <h2>Final Score: {score}</h2>
-            <button style={styles.button} onClick={() => setGameState('MENU')}>Return to Menu (r)</button>
+          <div style={styles.centered}>
+            <div style={styles.iconCircle}>🎉</div>
+            <h2 style={styles.title}>Session Complete</h2>
+            <div style={styles.finalScore}>{score} <span style={{fontSize: '1rem'}}>correct</span></div>
+            <button style={styles.primaryBtn} onClick={() => setGameState('MENU')}>Play Again</button>
           </div>
         )}
       </div>
@@ -197,55 +204,88 @@ export default function PutCallGame() {
 
 const styles = {
   container: {
-    backgroundColor: '#1a1a1a',
-    height: '100vh',
+    backgroundColor: '#F9FAFB',
+    minHeight: '100vh',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#00FF00',
-    fontFamily: '"Courier New", Courier, monospace',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   },
-  terminal: {
-    width: '600px',
-    height: '450px',
-    border: '2px solid #00FF00',
-    padding: '20px',
-    backgroundColor: '#000',
-    boxShadow: '0 0 15px rgba(0, 255, 0, 0.2)',
-    position: 'relative',
-    overflow: 'hidden'
+  card: {
+    backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: '480px',
+    padding: '40px',
+    borderRadius: '24px',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
   },
-  content: { display: 'flex', flexDirection: 'column', gap: '15px' },
-  button: {
-    backgroundColor: 'transparent',
-    color: '#00FF00',
-    border: '1px solid #00FF00',
-    padding: '10px',
-    cursor: 'pointer',
-    fontSize: '1.1rem',
-    marginTop: '10px'
-  },
-  input: {
-    backgroundColor: '#000',
-    border: '1px solid #00FF00',
-    color: '#00FF00',
-    padding: '5px',
-    fontSize: '1rem',
-    width: '60px'
-  },
-  gameInput: {
-    backgroundColor: 'transparent',
+  centered: { textAlign: 'center' },
+  title: { fontSize: '1.875rem', fontWeight: '800', color: '#111827', marginBottom: '8px' },
+  subtitle: { color: '#6B7280', marginBottom: '32px' },
+  sectionTitle: { fontSize: '1.25rem', fontWeight: '700', marginBottom: '24px' },
+  primaryBtn: {
+    width: '100%',
+    backgroundColor: '#4F46E5',
+    color: '#FFF',
+    padding: '12px',
+    borderRadius: '12px',
     border: 'none',
-    borderBottom: '2px solid #00FF00',
-    color: '#00FF00',
-    fontSize: '1.2rem',
-    outline: 'none',
-    width: '150px',
-    marginLeft: '10px'
+    fontSize: '1rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+    marginTop: '20px'
   },
-  modeList: { textAlign: 'left', margin: '10px 0' },
-  modeItem: { cursor: 'pointer', margin: '5px 0', userSelect: 'none' },
-  header: { display: 'flex', justifyContent: 'space-between', marginBottom: '30px' },
-  question: { fontSize: '1.2rem', lineHeight: '1.6', whiteSpace: 'pre-wrap' },
-  answerArea: { marginTop: '20px' }
+  inputGroup: { marginBottom: '24px' },
+  label: { display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '8px' },
+  textInput: {
+    width: '100%',
+    padding: '10px',
+    borderRadius: '8px',
+    border: '1px solid #D1D5DB',
+    boxSizing: 'border-box'
+  },
+  modeGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' },
+  modeCard: {
+    padding: '12px',
+    borderRadius: '12px',
+    border: '2px solid',
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  modeName: { fontWeight: '600', fontSize: '0.9rem', color: '#111827' },
+  modeDesc: { fontSize: '0.75rem', color: '#6B7280' },
+  gameHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: '40px' },
+  statBox: { textAlign: 'center' },
+  statLabel: { display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#9CA3AF', letterSpacing: '0.05em' },
+  statValue: { fontSize: '1.5rem', fontWeight: '800' },
+  problemGrid: { 
+    backgroundColor: '#F3F4F6', 
+    padding: '20px', 
+    borderRadius: '16px', 
+    marginBottom: '32px' 
+  },
+  varRow: { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E5E7EB' },
+  varLabel: { fontWeight: '600', color: '#4B5563' },
+  varValue: { color: '#111827', fontFamily: 'monospace', fontSize: '1.1rem' },
+  answerSection: { textAlign: 'center' },
+  answerInput: {
+    width: '100%',
+    fontSize: '1.5rem',
+    textAlign: 'center',
+    border: 'none',
+    borderBottom: '3px solid #4F46E5',
+    outline: 'none',
+    padding: '8px',
+    color: '#111827'
+  },
+  finalScore: { fontSize: '3rem', fontWeight: '800', color: '#4F46E5', margin: '20px 0' },
+  iconCircle: { 
+    fontSize: '3rem', 
+    marginBottom: '20px', 
+    display: 'inline-block', 
+    background: '#EEF2FF', 
+    padding: '20px', 
+    borderRadius: '50%' 
+  }
 };
