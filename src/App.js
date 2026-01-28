@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // Game constants matching your Python logic
 const MODES = [
-  { id: 1, name: "Basic Parity", desc: "Solve for C or P", bit: 0b00001 },
-  { id: 2, name: "Combo", desc: "Solve for Spot (S)", bit: 0b00010 },
-  { id: 3, name: "Straddle", desc: "C + P logic", bit: 0b00100 },
-  { id: 4, name: "B/W", desc: "Buy/Write logic", bit: 0b01000 },
-  { id: 5, name: "P&S", desc: "Protective Synthetic", bit: 0b10000 },
+  { id: 1, name: "Basic Parity", desc: "Solve for C or P", bit: 0b00001, formula: "C - P = S - K + r/c", formulaAlt: "C = P + S - K + r/c  or  P = C - S + K - r/c" },
+  { id: 2, name: "Combo", desc: "Solve for Spot (S)", bit: 0b00010, formula: "Combo = C - P = S - K + r/c", formulaAlt: "S = Combo + K - r/c" },
+  { id: 3, name: "Straddle", desc: "C + P logic", bit: 0b00100, formula: "Straddle = C + P", formulaAlt: "C = Straddle - P  or  P = Straddle - C" },
+  { id: 4, name: "B/W", desc: "Buy/Write logic", bit: 0b01000, formula: "B/W = S - C", formulaAlt: "C = S - B/W  or  P = B/W - K + S" },
+  { id: 5, name: "P&S", desc: "Protective Synthetic", bit: 0b10000, formula: "P&S = P + S", formulaAlt: "C = P&S - S + K - r/c  or  P = P&S - S" },
 ];
 
 export default function PutCallGame() {
@@ -17,6 +17,9 @@ export default function PutCallGame() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [currentProblem, setCurrentProblem] = useState(null);
   const [userInput, setUserInput] = useState("");
+  const [currentMode, setCurrentMode] = useState(null);
+  const [showFormula, setShowFormula] = useState(false);
+  const [hoveredSettingsMode, setHoveredSettingsMode] = useState(null);
   const inputRef = useRef(null);
 
   // Core Math Logic from game.py
@@ -87,6 +90,7 @@ export default function PutCallGame() {
       default: break;
     }
     setCurrentProblem({ vars, answer });
+    setCurrentMode(mode);
     setUserInput("");
   }, [enabledModes]);
 
@@ -139,13 +143,21 @@ export default function PutCallGame() {
             </div>
             <div style={styles.modeGrid}>
               {MODES.map(mode => (
-                <div 
-                  key={mode.id} 
+                <div
+                  key={mode.id}
                   onClick={() => setEnabledModes(prev => prev ^ mode.bit)}
-                  style={{...styles.modeCard, borderColor: (enabledModes & mode.bit) ? '#4F46E5' : '#E5E7EB', backgroundColor: (enabledModes & mode.bit) ? '#F5F3FF' : '#FFF'}}
+                  onMouseEnter={() => setHoveredSettingsMode(mode.id)}
+                  onMouseLeave={() => setHoveredSettingsMode(null)}
+                  style={{...styles.modeCard, borderColor: (enabledModes & mode.bit) ? '#4F46E5' : '#E5E7EB', backgroundColor: (enabledModes & mode.bit) ? '#F5F3FF' : '#FFF', position: 'relative'}}
                 >
                   <div style={styles.modeName}>{mode.name}</div>
                   <div style={styles.modeDesc}>{mode.desc}</div>
+                  {hoveredSettingsMode === mode.id && (
+                    <div style={styles.settingsTooltip}>
+                      <div style={styles.formulaPrimary}>{mode.formula}</div>
+                      <div style={styles.formulaAlt}>{mode.formulaAlt}</div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -160,12 +172,29 @@ export default function PutCallGame() {
                 <span style={styles.statLabel}>SCORE</span>
                 <span style={styles.statValue}>{score}</span>
               </div>
+              {currentMode && (
+                <div
+                  style={styles.modeIndicator}
+                  onMouseEnter={() => setShowFormula(true)}
+                  onMouseLeave={() => setShowFormula(false)}
+                >
+                  <span style={styles.modeIndicatorText}>{currentMode.name}</span>
+                  <span style={styles.formulaIcon}>?</span>
+                  {showFormula && (
+                    <div style={styles.formulaTooltip}>
+                      <div style={styles.formulaTitle}>{currentMode.name}</div>
+                      <div style={styles.formulaPrimary}>{currentMode.formula}</div>
+                      <div style={styles.formulaAlt}>{currentMode.formulaAlt}</div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={styles.statBox}>
                 <span style={styles.statLabel}>TIME</span>
                 <span style={{...styles.statValue, color: timeLeft < 10 ? '#EF4444' : '#111827'}}>{timeLeft}s</span>
               </div>
             </div>
-            
+
             <div style={styles.problemGrid}>
               {currentProblem?.vars.map(([label, val]) => (
                 <div key={label} style={styles.varRow}>
@@ -280,12 +309,92 @@ const styles = {
     color: '#111827'
   },
   finalScore: { fontSize: '3rem', fontWeight: '800', color: '#4F46E5', margin: '20px 0' },
-  iconCircle: { 
-    fontSize: '3rem', 
-    marginBottom: '20px', 
-    display: 'inline-block', 
-    background: '#EEF2FF', 
-    padding: '20px', 
-    borderRadius: '50%' 
+  iconCircle: {
+    fontSize: '3rem',
+    marginBottom: '20px',
+    display: 'inline-block',
+    background: '#EEF2FF',
+    padding: '20px',
+    borderRadius: '50%'
+  },
+  modeIndicator: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 12px',
+    backgroundColor: '#EEF2FF',
+    borderRadius: '20px',
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  modeIndicatorText: {
+    fontSize: '0.8rem',
+    fontWeight: '600',
+    color: '#4F46E5'
+  },
+  formulaIcon: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '16px',
+    height: '16px',
+    fontSize: '0.7rem',
+    fontWeight: '700',
+    color: '#4F46E5',
+    backgroundColor: '#C7D2FE',
+    borderRadius: '50%'
+  },
+  formulaTooltip: {
+    position: 'absolute',
+    top: '100%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    marginTop: '10px',
+    padding: '16px',
+    backgroundColor: '#1F2937',
+    color: '#FFF',
+    borderRadius: '12px',
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
+    zIndex: 100,
+    minWidth: '280px',
+    textAlign: 'center'
+  },
+  formulaTitle: {
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: '8px'
+  },
+  formulaPrimary: {
+    fontSize: '1.1rem',
+    fontWeight: '700',
+    color: '#A5B4FC',
+    fontFamily: 'monospace',
+    marginBottom: '8px'
+  },
+  formulaAlt: {
+    fontSize: '0.85rem',
+    color: '#D1D5DB',
+    fontFamily: 'monospace',
+    lineHeight: '1.5'
+  },
+  settingsTooltip: {
+    position: 'absolute',
+    bottom: '100%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    marginBottom: '8px',
+    padding: '12px',
+    backgroundColor: '#1F2937',
+    color: '#FFF',
+    borderRadius: '10px',
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
+    zIndex: 100,
+    minWidth: '240px',
+    textAlign: 'center',
+    pointerEvents: 'none'
   }
 };
